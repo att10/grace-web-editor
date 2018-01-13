@@ -7,7 +7,7 @@ path = require("path");
 
 require("jquery-ui");
 require("setimmediate");
-require("sweetalert");
+const swal = require("sweetalert2");
 var fileSystem = require("./fileSystem.js").setup();
 
 exports.setup = function (tree) {
@@ -59,16 +59,16 @@ exports.setup = function (tree) {
            ext === ".ogg" ? "audio/ogg" : ext === ".wav" ? "audio/wav" : "";
   }
 
-    function validateName(newName, category, checkLocalStorage, shouldAlert) {
-        // returns true if newName is OK for a file; otherwise false.
-        // shouldAlert is a boolean; true means to post an alert.
-        // category is a string: "file" or "directory"
-        // if checkLocalStorage, then also check that there is no localStorage file with newName
+  function validateName(newName, category, checkLocalStorage, shouldAlert) {
+    // returns true if newName is OK for a file; otherwise false.
+    // shouldAlert is a boolean; true means to post an alert.
+    // category is a string: "file" or "directory"
+    // if checkLocalStorage, then also check that there is no localStorage file with newName
 
-        return validateNameAndDestination(newName,currentDirectory, category, checkLocalStorage, shouldAlert);
-    }
+    return validateNameAndDestination(newName, currentDirectory, category, checkLocalStorage, shouldAlert);
+  }
 
-   function validateNameAndDestination(newName, destination, category, checkLocalStorage, shouldAlert) {
+  function validateNameAndDestination(newName, destination, category, checkLocalStorage, shouldAlert) {
     // returns true if newName is OK for a file; otherwise false.
     // shouldAlert is a boolean; true means to post an alert.
     // category is a string: "file" or "directory"
@@ -83,7 +83,7 @@ exports.setup = function (tree) {
     var fileStorageName = newName; //Default with no directory
 
     //Optional argument alert -- if not provided, shouldAlert=true
-    if(shouldAlert === undefined)
+    if (shouldAlert === undefined)
       shouldAlert = true;
 
     //Generate the fileStorage name
@@ -108,16 +108,16 @@ exports.setup = function (tree) {
       return false;
     }
 
-     //Check extension -- only valid ones allowed
-     if (! fileSystem.validateExtension(newName)) {
+    //Check extension -- only valid ones allowed
+    if (! fileSystem.validateExtension(newName)) {
        if (shouldAlert)
          alert("Names must have a valid extension.");
        lastError = "\""+fileSystem.getExtension(newName)+"\" is not a supported extension.";
        return false;
-     }
+    }
 
     //Check for this identifier explicitly in the directory structure
-    if (localStorage.hasOwnProperty(category + ":" + fileStorageName)) {
+    if (fileExistsLocally(newName)) {
       if(shouldAlert)
         alert("That name is already taken.");
       lastError = "That name is already taken.";
@@ -152,7 +152,14 @@ exports.setup = function (tree) {
   function isBuiltInModule(filename) {
     //Check if this filename is one of the built-in modules
     filename = fileSystem.parseSlashName(fileSystem.removeExtension(filename));
-    return(typeof global[graceModuleName(filename)] !== "undefined");
+    return (global[graceModuleName(filename)]
+                && !fileExistsLocally(filename + ".grace") ? true : false);
+      // the explicit true and false turn an undefined into a boolean
+  }
+
+  function fileExistsLocally(basename) {
+      return keys(localStorage).find(nm => {
+            nm.startsWith("file:") && nm.endsWith(basename)});
   }
   
   function checkForBuiltInConflict(filename, callback) {
@@ -169,7 +176,7 @@ exports.setup = function (tree) {
         cancelButtonText: "Cancel",
         confirmButtonColor: "#d13838",
         animation: "slide-from-top"
-      }, function (inputValue) {
+      }).then(function (inputValue) {
         if (inputValue) {
           callback();
         }
@@ -204,13 +211,13 @@ exports.setup = function (tree) {
           closeOnConfirm: false,
           animation: "slide-from-top",
           inputPlaceholder: lastName
-        }, function(inputValue) {
+        }).then(function(inputValue) {
           //Check the input for problems
           if (inputValue === false) return false;
 
           //Check if there is input
           if (inputValue === "" || inputValue === null) {
-            swal.showInputError("You need to enter a " + category + " name!");
+            swal("Error", "You need to enter a " + category + " name!", "error");
             return false;
           }
 
@@ -221,7 +228,7 @@ exports.setup = function (tree) {
 
           //Validate the name
           if (!validateName(inputValue, category, true, false)) {
-            swal.showInputError(lastError);
+            swal("Error", lastError, "error");
             return false;
           }
 
@@ -1035,131 +1042,113 @@ exports.setup = function (tree) {
       }
     }
 
+    // check the files for name conflicts;
+    // if conflicts are found, mark them, and rename
     fileNameList = [];
     conflictingFiles = [];
-
-    //Check the name list to see if there are name conflicts,
-    //if there are, mark them, and rename in a loop
     for (i = 0, l = this.files.length; i < l; i += 1) {
-      file = this.files[i];
-
-      conflictingFiles[i] = {
-        conflictExists:(!validateName(file.name, "file", true, false)),
-        builtInConflict: isBuiltInModule(file.name)
-      };
-      fileNameList[i] = file.name;
+        file = this.files[i];
+        conflictingFiles[i] = {
+            conflictExists:(!validateName(file.name, "file", true, false)),
+            builtInConflict: isBuiltInModule(file.name)
+        };
+        fileNameList[i] = file.name;
     }
 
-    renameFileOnUpload(fileNameList, conflictingFiles,0,l,this, function (fileList, that) {
-      for (i = 0; i < l; i += 1) {
-        if ((fileList[i] !== undefined) && (fileList[i] !== false)){
-          //Add the selected directory identifier to the file path
-          if (currentDirectory !== undefined) {
-            fileList[i] = currentDirectory.attr("dire-name") + "/" + fileSystem.parseSlashName(fileList[i]);
-          }
-          readFileList(fileList[i], that.files[i]);
-          lastValid = fileList[i];
+    renameFileOnUpload(fileNameList, conflictingFiles, 0, this,
+        function (fileList, that) {
+              for (var i = 0, l = fileList.length; i < l; i += 1) {
+                if (fileList[i]) {
+                  //Add the selected directory identifier to the file path
+                  if (currentDirectory !== undefined) {
+                    fileList[i] = currentDirectory.attr("dire-name") + "/" + fileSystem.parseSlashName(fileList[i]);
+                  }
+                  readFileList(fileList[i], that.files[i]);
+                  lastValid = fileList[i];
+                }
+              }
+              //Reset value to allow same-name uploads
+              input.val("");
         }
-      }
-      //Reset value to allow same-name uploads
-      input.val("");
-    });
-  });
+    );
+  });  // end of input.change
 
-  //File list is a array of fileNames
-  //Conflict list is a array of objects with true/false error flags for each file
-  function renameFileOnUpload(fileList, conflictList, startIndex, length, thisObj, callback){
-    var i = startIndex;
-    var alertTitle = "Name Conflict: " + fileList[i];
-    var alertText, confirmText, cancelText;
 
-    if(conflictList[i].builtInConflict){
-      alertText = "The filename \""+fileList[i]+"\" corresponds to a built-in module. Uploading this file without renaming it will overwrite this module." +
-          " Doing so could cause unpredictable behavior!";
-      confirmText = "Rename and Upload";
-      cancelText = "Upload Without Renaming";
+  function renameFileOnUpload(fileList, conflictList, i, thisObj, callback) {
+        // fileList is a array of fileNames
+        // conflictList is a array of objects with Boolean attributes
+        // conflictExists and builtInConflict for each file
+        // i is the index within fileList of the next file to be checked.
+    var fn = fileList[i];
+    var alertTitle = "Name Conflict: " + fn;
+    var alertText, dangerMode;
+
+    if (conflictList[i].builtInConflict) {
+      alertText = "The filename \"" + fn +
+            "\" corresponds to a built-in module. Uploading this file without" +
+            " renaming it will overwrite this module, which could cause" +
+            " unpredictable behavior!";
+      dangerMode = true;
     } else {
-      alertText = "The filename \""+fileList[i]+"\" is already taken. "+"Please enter a new name for this file:";
-      confirmText = "Rename and Upload";
-      cancelText = "Cancel";
+      alertText = "The filename \"" + fn + "\" is already taken." +
+            " Please enter a new name for the file.";
+      dangerMode = false;
     }
 
-      //Check if this file conflicts
-      if(conflictList[i].conflictExists || conflictList[i].builtInConflict) {
+    if (conflictList[i].conflictExists || conflictList[i].builtInConflict) {
         swal({
           title: alertTitle,
           text: alertText,
-          type: "input",
-          showCancelButton: true,
-          confirmButtonText: confirmText,
-          cancelButtonText: cancelText,
-          closeOnConfirm: false,
-          closeOnCancel: false,
-          animation: "slide-from-top",
-          inputPlaceholder: "A different name..."
-        }, function (inputValue) {
-          //Check the input for problems
-          //Also executes when "CANCEL" button clicked
-          if (inputValue === false) {
-
-            //Remove the unresolved element and update traversal counter if valid conflict
-            if(!conflictList[i].builtInConflict) {
-              fileList[i] = false;
-            }
-
-            //Continue parsing list, if elements remain
-            if ((i + 1) < length) { //If i+1 is < length (l), keep going through the list
-              renameFileOnUpload(fileList, conflictList, (i + 1), length, thisObj, callback);
-            } else { // If we are at the end of the list...
-              //Execute the callback
-              callback(fileList, thisObj);
+          content: {
+              element: "input",
+              attributes: { type: "text", placeholder: "A different name..." } },
+              // the text is returned as the value of the confirm button
+          buttons: {
+              cancel: {text: "Cancel", closeModal: false, visible: true},
+              confirm: {text: "Rename", closeModal: false},
+              proceed_with_abandon: {text: "Upload without Renaming", closeModal: false}
+          },
+          width: 800,
+          dangerMode: dangerMode,
+          icon: "warning"
+        }).then( inputValue => {
+          if (inputValue === null) {
+            // a null inputValue means cancel was clicked, ESC pressed, or the
+            // user clicked outside of the modal dialog, so drop this file.
+            fileList[i] = false;
+            swal('uploading of "' + fn + '" cancelled');
+          } else if (inputValue === "proceed_with_abandon") {
+            swal('overwriting "' + fileList[i] + '"');
+          } else {
+              if (inputValue === "") {
+                  swal("Error", "You need to enter a new name!", "error");
+                  renameFileOnUpload(fileList, conflictList, i, thisObj, callback)
+                  return;
+              }
+              if (!validateName(inputValue, "file", true, false)) {
+                  swal("Error", lastError, "error");
+                  renameFileOnUpload(fileList, conflictList, i, thisObj, callback)
+                  return;
+              }
+              // everything is valid: continue with the rename
+              if (currentDirectory) {
+                  inputValue = currentDirectory.attr("dire-name") + "/" + inputValue;
+              }
+              // Add ".grace" if no extension provided
+              fileList[i] = fileSystem.addExtension(inputValue);
+              swal('renaming to "' + fileList[i] + '"');
+          }
+          if (i === fileList.length - 1) {
+              // this is the last file in the array, so execute the callback
               swal.close();
-            }
-            return false;
-          }
-
-          if (inputValue === "") {
-            swal.showInputError("You need to enter a new name!");
-            return false;
-          }
-          if (inputValue !== null && inputValue.length > 0) {
-            if (!validateName(inputValue, "file", true, false)) {
-              swal.showInputError(lastError);
-              return false;
-            }
-            //If everything is valid... we continue with the rename
-            if (currentDirectory !== undefined) {
-              inputValue = currentDirectory.attr("dire-name") + "/" + inputValue;
-            }
-            //Add ".grace" if no extension existed and update the filename
-            fileList[i] = fileSystem.addExtension(inputValue);
-
-            //Check if this is the last file in the array
-            //If so, then we proceed to add the files into memory
-            if ((i + 1) >= length) {
-              //Execute the callback
+              if (typeof callback != "function") debugger;
               callback(fileList, thisObj);
-              swal.close();
-
-            } else if ((i + 1) < length) { //If i+1 is < length (l), keep going through the list
-              renameFileOnUpload(fileList, conflictList, (i + 1), length, thisObj, callback);
-            }
+          } else {
+              renameFileOnUpload(fileList, conflictList, i + 1, thisObj, callback);
           }
-          return true;
-        });
+        } );   // ends then argument to swal promise
       }
-      //END CASE: If there is no name conflict in the upload
-      // and this is the last one
-      else if(((i+1) === length)){ //Note: last index is always length-1
-        //Execute the callback
-        callback(fileList, thisObj);
-        swal.close();
-      }
-      else {
-        renameFileOnUpload(fileList, conflictList, (i + 1), length, thisObj, callback);
-      }
-
-  }
+  } // end function renameFileOnUpload
 
 
   //******* Search Bar ********
@@ -1231,34 +1220,29 @@ exports.setup = function (tree) {
     });
   }
 
+  function fileNameValidator(name) {
+      return new Promise(function (resolve, reject) {
+          if (!name) {
+              reject('You need to enter a file name');
+          } else if (!validateName(name, "file", true, false)) {
+              reject(lastError);
+          } else {
+              resolve();
+          }
+      } )
+  }
 
   function createFile(filename) {
     swal({
       title: "New File",
       text: "Enter a filename:",
-      type: "input",
+      input: "text",
       showCancelButton: true,
-      closeOnConfirm: false,
-      animation: "slide-from-top",
-      inputPlaceholder: "A file name..."
-    }, function(inputValue) {
-      //Check the input for problems
-      if (inputValue === false) return false;
-
-      if (inputValue === "") {
-        swal.showInputError("You need to enter a File name!");
-        return false;
-      }
-      if (inputValue !== null && inputValue.length > 0) {
-        if (path.extname(inputValue) === "") {
-          inputValue += ".grace";
-        }
-
-        if (!validateName(inputValue, "file", true, false)) {
-          swal.showInputError(lastError);
-          return false;
-        }
-
+      inputPlaceholder: "A file name...",
+      inputValidator: fileNameValidator
+    }).then(function(inputValue) {
+      if (inputValue) {
+        inputValue = fileSystem.addExtension(name);
         if (currentDirectory !== undefined) {
           inputValue = currentDirectory.attr("dire-name") + "/" + inputValue;
         }
@@ -1268,8 +1252,10 @@ exports.setup = function (tree) {
           addFile(inputValue).click();
           swal.close();
         });
+        return true;
+      } else {
+        return false;
       }
-      return true;
     });
   }
 
@@ -1282,7 +1268,7 @@ exports.setup = function (tree) {
       closeOnConfirm: false,
       animation: "slide-from-top",
       inputPlaceholder: "A folder name..."
-    }, function(inputValue) {
+    }).then(function(inputValue) {
       //Check the input for problems
       if (inputValue === false) return false;
 
@@ -1364,7 +1350,7 @@ exports.setup = function (tree) {
       showCancelButton: true,
       confirmButtonColor: "#DD6B55",
       confirmButtonText: "Yes, delete it!",
-      closeOnConfirm: false },
+      closeOnConfirm: false }).then(
       function() {
         //Execute code passed to delete file/directory
         toExecAfter();
