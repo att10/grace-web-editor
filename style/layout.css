@@ -240,13 +240,13 @@ a {
   color: rgb(181, 137, 0);
   height: 50px;
   width: 20px;
-  margin-top: calc(50vh - 15px); 
+  margin-top: calc(50vh - 15px);
   font-size: 30px;
   cursor: pointer;
   margin-left: -4px;
-  text-shadow: -0.5px -0.5px 0px #FFF, 
-               0.5px -0.5px 0px #FFF, 
-               -0.5px 0.5px 0px #FFF, 
+  text-shadow: -0.5px -0.5px 0px #FFF,
+               0.5px -0.5px 0px #FFF,
+               -0.5px 0.5px 0px #FFF,
                0px 0.5px 0px #FFF;
 }
 
@@ -387,7 +387,7 @@ a {
   min-height: 150px;
   min-width: 500px;
   max-height: 150px;
-  overflow-y: hidden; 
+  overflow-y: hidden;
 }
 
 @media all and (min-height: 600px) {
@@ -428,8 +428,8 @@ a {
 }
 
 .search .icon {
-  -webkit-transform: rotate(-45deg); 
-  -moz-transform: rotate(-45deg); 
+  -webkit-transform: rotate(-45deg);
+  -moz-transform: rotate(-45deg);
   -o-transform: rotate(-45deg);
 }
 
@@ -456,7 +456,7 @@ a {
   border-bottom: 0px;
 }
 
-.wait, .build {
+.wait, .build, .suggest {
   color: #586e75;
   background-color: rgba(88, 110, 117, 0.1);
   border: 1px solid rgba(88, 110, 117, 0.3);
@@ -536,9 +536,9 @@ a {
   height: 30px;
   margin-left: -7.5px;
   color: rgb(181, 137, 0);
-  text-shadow: -0.5px -0.5px 0px #839496, 
-               0.5px -0.5px 0px #839496, 
-               -0.5px 0.5px 0px #839496, 
+  text-shadow: -0.5px -0.5px 0px #839496,
+               0.5px -0.5px 0px #839496,
+               -0.5px 0.5px 0px #839496,
                0px 0.5px 0px #839496;
 }
 
