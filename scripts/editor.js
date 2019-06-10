@@ -205,7 +205,7 @@ exports.setup = function (files, view, imgView, audioView, fdbk, hideReveal) {
   $(document).on("hideEditor", function () {
     view.addClass("hidden");
   });
-  
+
   //Change event responder to keep track of cursor position
   selection.on("changeCursor", function(){
     var name, cursor, lastRow, lastColumn;
@@ -433,7 +433,7 @@ exports.setup = function (files, view, imgView, audioView, fdbk, hideReveal) {
 
       // initialize stacks and counter if not done yet
       if (undoStacks[name] == undefined) undoStacks[name] = [];
-      if (redoStacks[name] == undefined) redoStacks[name] = []; 
+      if (redoStacks[name] == undefined) redoStacks[name] = [];
       if (dirtyCounters[name] == undefined) dirtyCounters[name] = 0;
 
       // grab undo/redo stack and dirty counter for file being opened
@@ -465,7 +465,7 @@ exports.setup = function (files, view, imgView, audioView, fdbk, hideReveal) {
     }
   });
 
-  //Function to respond to a "Delete" button click 
+  //Function to respond to a "Delete" button click
   remove.click(function () {
     files.confirmDelete("Are you sure you want to delete this file?", function () {
       files.remove();
@@ -672,4 +672,98 @@ function setupCharacterEquivalencies(editor) {
     cursorMoved = true;
   });
 
+  // prints all tokens for debugging suggestions
+	function getTokens(sof) {
+		var current = sof;
+		while (current.kind != undefined) {
+			console.log(current.kind._value + ": " + current.value._value);
+			current = current.next.data;
+		}
+	}
+
+  // adds suggestion directly into editor
+  // NEED TO MAKE THIS OPTIONAL
+	function addSuggest(decName, type, line) {
+		var fileContents = localStorage["file:"+localStorage["currentFile"]];
+		var lines = fileContents.split("\n"); // separate into lines
+		var col = lines[line-1].indexOf(decName, 3) + decName.length;
+		var replacementRange = new Range(line-1, col, line-1, col);
+		editor.session.replace(replacementRange, ": " + type);
+	}
+
+	// checks type of definition
+	function checkDef(sof) {
+		//getTokens(sof);
+		var current = sof;
+		while (current.kind != undefined) {
+			if (current.value._value == "def" || current.value._value == "var") {
+
+				// get type of declaration
+				var dec = current.value._value;
+
+				// get def name
+				var decName = current.next.data.value._value;
+
+				// check three tokens after def
+				current = current.next.data.next.data.next.data;
+
+				var suggestion;
+				switch(current.kind._value) {
+					case "identifier": // type was declared
+						suggestion = undefined;
+						break;
+					case "num":
+						suggestion = "Number";
+						break;
+					case "string":
+						suggestion = "String";
+						break;
+					default:
+						suggestion = "unknown";
+				}
+
+				writeSuggest(decName, suggestion, current.line._value);
+			}
+
+			current = current.next.data;
+		}
+	}
+
+  // describe suggestion in console
+	function writeSuggest(decName, type, line) {
+		if (type != undefined) {
+			feedback.output.write("Type Suggestion: " + decName + " is " + type +
+									 " (line " + line + ")");
+			addSuggest(decName, type, line);
+		}
+	}
+
+	var suggests = $(".suggest"); // suggest button
+	var build = $(".build");      // build button
+
+  suggests.click(function () {
+		feedback.output.clear();
+		try {
+			var lexer = do_import("lexer", gracecode_lexer);
+			var var_util = do_import("util", gracecode_util);
+			var fileContents = new GraceString(localStorage["file:"+localStorage["currentFile"]]);
+			var lexString = request(lexer, "lexString(1)", [1], fileContents);
+			var startOfFile = lexString.data.header.data;
+			checkDef(startOfFile);
+
+      // AST STUFF, MIGHT BE USEFUL IN FUTURE
+			// var var_util = do_import("util", gracecode_util);
+			// var var_lexer = do_import("lexer", gracecode_lexer);
+			// var var_parser = do_import("parser", gracecode_parser);
+			// var utilInfile = request(var_util, "infile", [0]);
+			// var tokens = request(var_lexer, "lexfile(1)", [1], utilInfile);
+			// var moduleObject = request(var_parser, "parse(1)", [1], tokens);
+			// var call148 = request(moduleObject, "scope", [0]);
+			// console.log(call148);
+
+		} catch(err) {
+			build.click(); // compile to display error message
+		}
+
+	});
 }
