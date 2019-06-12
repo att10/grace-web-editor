@@ -681,20 +681,11 @@ function setupCharacterEquivalencies(editor) {
 		}
 	}
 
-  // adds suggestion directly into editor
-  // NEED TO MAKE THIS OPTIONAL
-	function addSuggest(decName, type, line) {
-		var fileContents = localStorage["file:"+localStorage["currentFile"]];
-		var lines = fileContents.split("\n"); // separate into lines
-		var col = lines[line-1].indexOf(decName, 3) + decName.length;
-		var replacementRange = new Range(line-1, col, line-1, col);
-		editor.session.replace(replacementRange, ": " + type);
-	}
-
 	// checks type of definition
-	function checkDef(sof) {
+	function checkDec(sof) {
 		//getTokens(sof);
 		var current = sof;
+		var changed = false;
 		while (current.kind != undefined) {
 			if (current.value._value == "def" || current.value._value == "var") {
 
@@ -710,7 +701,11 @@ function setupCharacterEquivalencies(editor) {
 				var suggestion;
 				switch(current.kind._value) {
 					case "identifier": // type was declared
-						suggestion = undefined;
+						if (current.value._value == "true" || current.value._value == "false") {
+							suggestion = "Boolean";
+						} else {
+							suggestion = undefined;
+						}
 						break;
 					case "num":
 						suggestion = "Number";
@@ -719,29 +714,55 @@ function setupCharacterEquivalencies(editor) {
 						suggestion = "String";
 						break;
 					default:
-						suggestion = "unknown";
+						suggestion = undefined;
 				}
 
-				writeSuggest(decName, suggestion, current.line._value);
+				if (suggestion != undefined) {
+					writeSuggest(decName, suggestion, current.line._value);
+					changed = true;
+				}
 			}
 
 			current = current.next.data;
 		}
-	}
-
-  // describe suggestion in console
-	function writeSuggest(decName, type, line) {
-		if (type != undefined) {
-			feedback.output.write("Type Suggestion: " + decName + " is " + type +
-									 " (line " + line + ")");
-			addSuggest(decName, type, line);
+		if (!changed) {
+			feedback.output.write("No type suggestions available");
 		}
+
 	}
 
-	var suggests = $(".suggest"); // suggest button
-	var build = $(".build");      // build button
+	function writeSuggest(decName, type, line) {
+		feedback.output.write("Type Suggestion: " + decName + " is " + type +
+								 " (line " + line + ")");
+		addSuggest(decName, type, line - 1);
+	}
 
-  suggests.click(function () {
+	function addSuggest(decName, type, line) {
+		var fileContents = localStorage["file:"+localStorage["currentFile"]];
+		var lines = fileContents.split("\n");
+		var col = lines[line].indexOf(decName, 3) + decName.length;
+		// var replacementRange = new Range(line, col, line, col);
+		// var replacementString = ": " + type;
+		// editor.session.replace(replacementRange, replacementString);
+
+		var annotation = {
+			column: col,
+			row: line,
+			text: "Type Suggestion: " + decName + " is " + type
+					  + "\n\nClick to accept this suggestion",
+			type: "warning",
+			value: ": " + type,
+			name: decName
+		}
+		annotations.push(annotation);
+	}
+
+	var suggests = $(".suggest");
+	var build = $(".build");
+	var warning = $(".ace_gutter-cell ");
+	var annotations = [];
+
+	suggests.click(function () {
 		feedback.output.clear();
 		try {
 			var lexer = do_import("lexer", gracecode_lexer);
@@ -749,21 +770,41 @@ function setupCharacterEquivalencies(editor) {
 			var fileContents = new GraceString(localStorage["file:"+localStorage["currentFile"]]);
 			var lexString = request(lexer, "lexString(1)", [1], fileContents);
 			var startOfFile = lexString.data.header.data;
-			checkDef(startOfFile);
+			//getTokens(startOfFile);
+			checkDec(startOfFile);
+			editor.session.setAnnotations(annotations);
 
-      // AST STUFF, MIGHT BE USEFUL IN FUTURE
 			// var var_util = do_import("util", gracecode_util);
 			// var var_lexer = do_import("lexer", gracecode_lexer);
-			// var var_parser = do_import("parser", gracecode_parser);
+			var parser = do_import("parser", gracecode_parser);
+			var var_visitor = do_import("requireTypes", gracecode_requireTypes);
+			//
 			// var utilInfile = request(var_util, "infile", [0]);
 			// var tokens = request(var_lexer, "lexfile(1)", [1], utilInfile);
-			// var moduleObject = request(var_parser, "parse(1)", [1], tokens);
-			// var call148 = request(moduleObject, "scope", [0]);
-			// console.log(call148);
+			var moduleObject = request(parser, "parse(1)", [1], lexString);
+			// var symTable = request(moduleObject, "scope", [0]);
+			var visitor = request(var_visitor, "thisDialect", [0]);
+			var result = request(visitor, "parseChecker(1)", [1], moduleObject);
+			console.log(moduleObject);
 
 		} catch(err) {
 			build.click(); // compile to display error message
 		}
 
+	});
+
+	// when a suggestion in gutter is clicked
+	$(".ace_gutter").on('click', '.ace_warning', function() {
+		var index = $('.ace_warning').index(this);
+		var annotation = annotations[index];
+		var row = annotation.row;
+		var col = annotation.column;
+		var name = annotation.name;
+		var type = annotation.value;
+		var replacementRange = new Range(row, col, row, col);
+		editor.session.replace(replacementRange, type);
+
+		annotations.splice(index, 1);
+		editor.session.setAnnotations(annotations);
 	});
 }
