@@ -759,7 +759,6 @@ function setupCharacterEquivalencies(editor) {
 
 				if (suggestion != undefined) {
 					writeSuggest(decName, suggestion, current.line._value);
-					changed = true;
 				}
 			}
 
