@@ -672,8 +672,48 @@ function setupCharacterEquivalencies(editor) {
     cursorMoved = true;
   });
 
-  // prints all tokens for debugging suggestions
-	function getTokens(sof) {
+  //****** Type Suggestion ********//
+  var suggests = $(".suggest");
+	var build = $(".build");
+	var warning = $(".ace_gutter-cell ");
+	var annotations = [];
+
+	suggests.click(function () {
+		feedback.output.clear();
+		try {
+			var lexer = do_import("lexer", gracecode_lexer);
+			var var_util = do_import("util", gracecode_util);
+			var fileContents = new GraceString(localStorage["file:"+localStorage["currentFile"]]);
+			var lexString = request(lexer, "lexString(1)", [1], fileContents);
+			var startOfFile = lexString.data.header.data;
+
+      // look for suggestions
+			checkDec(startOfFile);
+
+      // display suggestions in gutter
+			editor.session.setAnnotations(annotations);
+
+			// // var var_util = do_import("util", gracecode_util);
+			// // var var_lexer = do_import("lexer", gracecode_lexer);
+			// var parser = do_import("parser", gracecode_parser);
+			// var var_visitor = do_import("requireTypes", gracecode_requireTypes);
+			//
+			// // var utilInfile = request(var_util, "infile", [0]);
+			// // var tokens = request(var_lexer, "lexfile(1)", [1], utilInfile);
+			// var moduleObject = request(parser, "parse(1)", [1], lexString);
+			// // var symTable = request(moduleObject, "scope", [0]);
+			// var visitor = request(var_visitor, "thisDialect", [0]);
+			// var result = request(var_visitor, "visitDefDec(1)", [1], moduleObject);
+			// console.log(moduleObject);
+
+		} catch(err) {
+			build.click(); // compile to display error message
+		}
+
+	});
+
+  // prints all tokens in console
+	function printTokens(sof) {
 		var current = sof;
 		while (current.kind != undefined) {
 			console.log(current.kind._value + ": " + current.value._value);
@@ -681,18 +721,18 @@ function setupCharacterEquivalencies(editor) {
 		}
 	}
 
-	// checks type of definition
+	// checks declaration for type
 	function checkDec(sof) {
-		//getTokens(sof);
+
 		var current = sof;
-		var changed = false;
-		while (current.kind != undefined) {
+
+    while (current.kind != undefined) {
 			if (current.value._value == "def" || current.value._value == "var") {
 
 				// get type of declaration
 				var dec = current.value._value;
 
-				// get def name
+				// get variable/definition name
 				var decName = current.next.data.value._value;
 
 				// check three tokens after def
@@ -725,25 +765,24 @@ function setupCharacterEquivalencies(editor) {
 
 			current = current.next.data;
 		}
-		if (!changed) {
+		if (annotations.length == 0) {
 			feedback.output.write("No type suggestions available");
 		}
 
 	}
 
+  // writes suggestion in output
 	function writeSuggest(decName, type, line) {
 		feedback.output.write("Type Suggestion: " + decName + " is " + type +
 								 " (line " + line + ")");
 		addSuggest(decName, type, line - 1);
 	}
 
+  // adds suggestion to annotations to display in gutter
 	function addSuggest(decName, type, line) {
 		var fileContents = localStorage["file:"+localStorage["currentFile"]];
 		var lines = fileContents.split("\n");
 		var col = lines[line].indexOf(decName, 3) + decName.length;
-		// var replacementRange = new Range(line, col, line, col);
-		// var replacementString = ": " + type;
-		// editor.session.replace(replacementRange, replacementString);
 
 		var annotation = {
 			column: col,
@@ -754,44 +793,9 @@ function setupCharacterEquivalencies(editor) {
 			value: ": " + type,
 			name: decName
 		}
+
 		annotations.push(annotation);
 	}
-
-	var suggests = $(".suggest");
-	var build = $(".build");
-	var warning = $(".ace_gutter-cell ");
-	var annotations = [];
-
-	suggests.click(function () {
-		feedback.output.clear();
-		try {
-			var lexer = do_import("lexer", gracecode_lexer);
-			var var_util = do_import("util", gracecode_util);
-			var fileContents = new GraceString(localStorage["file:"+localStorage["currentFile"]]);
-			var lexString = request(lexer, "lexString(1)", [1], fileContents);
-			var startOfFile = lexString.data.header.data;
-			//getTokens(startOfFile);
-			checkDec(startOfFile);
-			editor.session.setAnnotations(annotations);
-
-			// var var_util = do_import("util", gracecode_util);
-			// var var_lexer = do_import("lexer", gracecode_lexer);
-			var parser = do_import("parser", gracecode_parser);
-			var var_visitor = do_import("requireTypes", gracecode_requireTypes);
-			//
-			// var utilInfile = request(var_util, "infile", [0]);
-			// var tokens = request(var_lexer, "lexfile(1)", [1], utilInfile);
-			var moduleObject = request(parser, "parse(1)", [1], lexString);
-			// var symTable = request(moduleObject, "scope", [0]);
-			var visitor = request(var_visitor, "thisDialect", [0]);
-			var result = request(visitor, "parseChecker(1)", [1], moduleObject);
-			console.log(moduleObject);
-
-		} catch(err) {
-			build.click(); // compile to display error message
-		}
-
-	});
 
 	// when a suggestion in gutter is clicked
 	$(".ace_gutter").on('click', '.ace_warning', function() {
@@ -803,7 +807,9 @@ function setupCharacterEquivalencies(editor) {
 		var type = annotation.value;
 		var replacementRange = new Range(row, col, row, col);
 		editor.session.replace(replacementRange, type);
+		$('.ace_tooltip').hide();
 
+		// redisplay suggestions since clicking clears gutter
 		annotations.splice(index, 1);
 		editor.session.setAnnotations(annotations);
 	});
