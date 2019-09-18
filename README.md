@@ -1,6 +1,8 @@
 editor
 ======
 
+Check out test version here: http://www.cs.pomona.edu/~athai/minigrace1/
+
 A simple editor for Grace
 
 Phase One:
