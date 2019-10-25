@@ -1,7 +1,7 @@
 editor
 ======
 
-Check out test version here: http://www.cs.pomona.edu/~athai/minigrace1/
+Check out test version here: http://www.cs.pomona.edu/~athai/minigrace1/ based on branch 'typeSuggestions'.
 
 A simple editor for Grace
 
