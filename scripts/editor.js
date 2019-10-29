@@ -674,142 +674,140 @@ function setupCharacterEquivalencies(editor) {
 
   //****** Type Suggestion ********//
   var suggests = $(".suggest");
-	var build = $(".build");
-	var warning = $(".ace_gutter-cell ");
-	var annotations = [];
+  var build = $(".build");
+  var warning = $(".ace_gutter-cell ");
+  var annotations = [];
 
-	suggests.click(function () {
-		feedback.output.clear();
-		try {
-			var lexer = do_import("lexer", gracecode_lexer);
-			var var_util = do_import("util", gracecode_util);
-			var fileContents = new GraceString(localStorage["file:"+localStorage["currentFile"]]);
-			var lexString = request(lexer, "lexString(1)", [1], fileContents);
-			var startOfFile = lexString.data.header.data;
+  suggests.click(function () {
+    feedback.output.clear();
+    try {
+      var lexer = do_import("lexer", gracecode_lexer);
+      var var_util = do_import("util", gracecode_util);
+      var fileContents = new GraceString(localStorage["file:"+localStorage["currentFile"]]);
+      var lexString = request(lexer, "lexString(1)", [1], fileContents);
+      var startOfFile = lexString.data.header.data;
 
       // look for suggestions
-			checkDec(startOfFile);
+      checkDec(startOfFile);
 
       // display suggestions in gutter
-			editor.session.setAnnotations(annotations);
+      editor.session.setAnnotations(annotations);
 
-			// // var var_util = do_import("util", gracecode_util);
-			// // var var_lexer = do_import("lexer", gracecode_lexer);
-			// var parser = do_import("parser", gracecode_parser);
-			// var var_visitor = do_import("requireTypes", gracecode_requireTypes);
-			//
-			// // var utilInfile = request(var_util, "infile", [0]);
-			// // var tokens = request(var_lexer, "lexfile(1)", [1], utilInfile);
-			// var moduleObject = request(parser, "parse(1)", [1], lexString);
-			// // var symTable = request(moduleObject, "scope", [0]);
-			// var visitor = request(var_visitor, "thisDialect", [0]);
-			// var result = request(var_visitor, "visitDefDec(1)", [1], moduleObject);
-			// console.log(moduleObject);
+      // Visit AST
+      // var var_util = do_import("util", gracecode_util);
+      // var var_lexer = do_import("lexer", gracecode_lexer);
+      // var parser = do_import("parser", gracecode_parser);
+      // var var_visitor = do_import("requireTypes", gracecode_requireTypes);
+      // var utilInfile = request(var_util, "infile", [0]);
+      // var tokens = request(var_lexer, "lexfile(1)", [1], utilInfile);
+      // var moduleObject = request(parser, "parse(1)", [1], lexString);
+      // var symTable = request(moduleObject, "scope", [0]);
+      // var visitor = request(var_visitor, "thisDialect", [0]);
+      // var result = request(var_visitor, "visitDefDec(1)", [1], moduleObject);
+      // console.log(moduleObject);
 
-		} catch(err) {
-			build.click(); // compile to display error message
-		}
-
-	});
+    } catch(err) {
+      build.click(); // compile to display error message
+    }
+  });
 
   // prints all tokens in console
-	function printTokens(sof) {
-		var current = sof;
-		while (current.kind != undefined) {
-			console.log(current.kind._value + ": " + current.value._value);
-			current = current.next.data;
-		}
-	}
-
-	// checks declaration for type
-	function checkDec(sof) {
-
-		var current = sof;
-
+  function printTokens(sof) {
+    var current = sof;
     while (current.kind != undefined) {
-			if (current.value._value == "def" || current.value._value == "var") {
+      console.log(current.kind._value + ": " + current.value._value);
+        current = current.next.data;
+    }
+  }
+	
+  // checks declaration for type
+  function checkDec(sof) {
+    var current = sof;
+    while (current.kind != undefined) {
+      if (current.value._value == "def" || current.value._value == "var") {
+	
+        // get type of declaration
+	var dec = current.value._value;
 
-				// get type of declaration
-				var dec = current.value._value;
+	// get variable/definition name
+	var decName = current.next.data.value._value;
 
-				// get variable/definition name
-				var decName = current.next.data.value._value;
+	// check three tokens after def
+	current = current.next.data.next.data.next.data;
 
-				// check three tokens after def
-				current = current.next.data.next.data.next.data;
-
-				var suggestion;
-				switch(current.kind._value) {
-					case "identifier": // type was declared
-						if (current.value._value == "true" || current.value._value == "false") {
-							suggestion = "Boolean";
-						} else {
-							suggestion = undefined;
-						}
-						break;
-					case "num":
-						suggestion = "Number";
-						break;
-					case "string":
-						suggestion = "String";
-						break;
-					default:
-						suggestion = undefined;
-				}
-
-				if (suggestion != undefined) {
-					writeSuggest(decName, suggestion, current.line._value);
-				}
-			}
-
-			current = current.next.data;
-		}
-		if (annotations.length == 0) {
-			feedback.output.write("No type suggestions available");
-		}
-
+	var suggestion;
+	switch(current.kind._value) {
+	  case "identifier": // type was declared
+	    if (current.value._value == "true" || current.value._value == "false") {
+	      suggestion = "Boolean";
+	    } else {
+ 	      suggestion = undefined;
+	    }
+	    break;
+	  case "num":
+	    suggestion = "Number";
+	    break;
+	  case "string":
+	    suggestion = "String";
+	    break;
+	  default:
+	    suggestion = undefined;
 	}
+
+	if (suggestion != undefined) {
+	  writeSuggest(decName, suggestion, current.line._value);
+	}
+      }
+
+      current = current.next.data;
+    }
+    
+    if (annotations.length == 0) {
+      feedback.output.write("No type suggestions available");
+    }
+
+  }
 
   // writes suggestion in output
-	function writeSuggest(decName, type, line) {
-		feedback.output.write("Type Suggestion: " + decName + " is " + type +
-								 " (line " + line + ")");
-		addSuggest(decName, type, line - 1);
-	}
+  function writeSuggest(decName, type, line) {
+    feedback.output.write("Type Suggestion: " + decName + " is " + type +
+			  " (line " + line + ")");
+    addSuggest(decName, type, line - 1);
+  }
 
   // adds suggestion to annotations to display in gutter
-	function addSuggest(decName, type, line) {
-		var fileContents = localStorage["file:"+localStorage["currentFile"]];
-		var lines = fileContents.split("\n");
-		var col = lines[line].indexOf(decName, 3) + decName.length;
+  function addSuggest(decName, type, line) {
+    var fileContents = localStorage["file:"+localStorage["currentFile"]];
+    var lines = fileContents.split("\n");
+    var col = lines[line].indexOf(decName, 3) + decName.length;
 
-		var annotation = {
-			column: col,
-			row: line,
-			text: "Type Suggestion: " + decName + " is " + type
+    var annotation = {
+      column: col,
+      row: line,
+      text: "Type Suggestion: " + decName + " is " + type
 					  + "\n\nClick to accept this suggestion",
-			type: "warning",
-			value: ": " + type,
-			name: decName
-		}
+      type: "warning",
+      value: ": " + type,
+      name: decName
+    }
 
-		annotations.push(annotation);
-	}
+    annotations.push(annotation);
+  }
 
-	// when a suggestion in gutter is clicked
-	$(".ace_gutter").on('click', '.ace_warning', function() {
-		var index = $('.ace_warning').index(this);
-		var annotation = annotations[index];
-		var row = annotation.row;
-		var col = annotation.column;
-		var name = annotation.name;
-		var type = annotation.value;
-		var replacementRange = new Range(row, col, row, col);
-		editor.session.replace(replacementRange, type);
-		$('.ace_tooltip').hide();
+  // when a suggestion in gutter is clicked
+  $(".ace_gutter").on('click', '.ace_warning', function() {
+    var index = $('.ace_warning').index(this);
+    var annotation = annotations[index];
+    var row = annotation.row;
+    var col = annotation.column;
+    var name = annotation.name;
+    var type = annotation.value;
+    var replacementRange = new Range(row, col, row, col);
+    editor.session.replace(replacementRange, type);
+    $('.ace_tooltip').hide();
 
-		// redisplay suggestions since clicking clears gutter
-		annotations.splice(index, 1);
-		editor.session.setAnnotations(annotations);
-	});
+    // redisplay suggestions since clicking clears gutter
+    annotations.splice(index, 1);
+    editor.session.setAnnotations(annotations);
+  });
 }
